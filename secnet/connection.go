@@ -2,10 +2,11 @@ package secnet
 
 import (
 	"crypto/rand"
-	"fmt"
-	"golang.org/x/crypto/nacl/box"
+	"encoding/binary"
 	"io"
 	"net"
+
+	"golang.org/x/crypto/nacl/box"
 )
 
 func Dial(addr string) (io.ReadWriteCloser, error) {
@@ -63,24 +64,27 @@ func NewSecureReader(r io.Reader, priv, pub *[32]byte) io.Reader {
 func (sr SecureReader) Read(p []byte) (n int, err error) {
 
 	// Get the ciphertext
-	var in []byte
+	var length int64
+	err = binary.Read(sr.r, binary.LittleEndian, &length)
+	if err != nil {
+		return 0, err
+	}
+	in := make([]byte, length)
 	n, err = sr.r.Read(in)
 	if err != nil {
 		return 0, err
 	}
-	fmt.Printf("DEBUG: read %d bytes\n", n)
 
 	// Do decryption
 	var msg []byte
-	box.OpenAfterPrecomputation(msg, in, &sr.nonce, sr.key)
-	fmt.Printf("DEBUG: msg is %d bytes\n", len(msg))
+	msg, _ = box.OpenAfterPrecomputation(msg, in, &sr.nonce, sr.key)
 
 	// Save the new nonce for use in the next read
 	copy(sr.nonce[:], msg[:24])
 
 	// Now return the plaintext
 	copy(p, msg[24:])
-	return len(p), nil
+	return len(msg) - 24, nil
 }
 
 type SecureWriter struct {
@@ -103,15 +107,19 @@ func (sw SecureWriter) Write(p []byte) (n int, err error) {
 	var nextNonce [24]byte
 	rand.Read(nextNonce[:])
 	msg := append(nextNonce[:], p...)
-	fmt.Printf("DEBUG: msg is %d bytes\n", len(msg))
 
 	// Do the encryption
 	var out []byte
 	out = box.SealAfterPrecomputation(out, msg, &sw.nonce, sw.key)
-	fmt.Printf("DEBUG: sending %d bytes\n", len(out))
 
 	// Save the new nonce for use in the next write
 	sw.nonce = nextNonce
+
+	// Send the length of the data
+	err = binary.Write(sw.w, binary.LittleEndian, int64(len(out)))
+	if err != nil {
+		return 0, err
+	}
 
 	// Then send the ciphertext on its way
 	return sw.w.Write(out)
