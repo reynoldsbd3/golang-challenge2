@@ -7,14 +7,9 @@ import (
 	"log"
 	"net"
 	"os"
-)
 
-// Dial generates a private/public key pair,
-// connects to the server, perform the handshake
-// and return a reader/writer.
-func Dial(addr string) (io.ReadWriteCloser, error) {
-	return nil, nil
-}
+	"github.com/reynoldsbd3/golang-challenge2/secnet"
+)
 
 // Serve starts a secure echo server on the given listener.
 func Serve(l net.Listener) error {
@@ -39,7 +34,7 @@ func main() {
 	if len(os.Args) != 3 {
 		log.Fatalf("Usage: %s <port> <message>", os.Args[0])
 	}
-	conn, err := Dial("localhost:" + os.Args[1])
+	conn, err := secnet.Dial("localhost:" + os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}

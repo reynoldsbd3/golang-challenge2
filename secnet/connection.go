@@ -1,4 +1,4 @@
-package main
+package secnet
 
 import (
 	"crypto/rand"
@@ -6,6 +6,27 @@ import (
 	"io"
 	"net"
 )
+
+func Dial(addr string) (io.ReadWriteCloser, error) {
+
+	pub, priv, err := box.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: set a timeout
+
+	// Handshake/kex
+	var peerPub *[32]byte
+	conn.Write((*pub)[:])
+	conn.Read((*peerPub)[:])
+
+	return SecureConnection{conn, NewSecureReader(conn, priv, peerPub), NewSecureWriter(conn, priv, peerPub)}, nil
+}
 
 type SecureConnection struct {
 	conn net.Conn
