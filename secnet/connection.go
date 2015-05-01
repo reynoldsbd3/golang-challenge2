@@ -2,6 +2,7 @@ package secnet
 
 import (
 	"crypto/rand"
+	"fmt"
 	"golang.org/x/crypto/nacl/box"
 	"io"
 	"net"
@@ -67,10 +68,12 @@ func (sr SecureReader) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
+	fmt.Printf("DEBUG: read %d bytes\n", n)
 
 	// Do decryption
 	var msg []byte
 	box.OpenAfterPrecomputation(msg, in, &sr.nonce, sr.key)
+	fmt.Printf("DEBUG: msg is %d bytes\n", len(msg))
 
 	// Save the new nonce for use in the next read
 	copy(sr.nonce[:], msg[:24])
@@ -100,10 +103,12 @@ func (sw SecureWriter) Write(p []byte) (n int, err error) {
 	var nextNonce [24]byte
 	rand.Read(nextNonce[:])
 	msg := append(nextNonce[:], p...)
+	fmt.Printf("DEBUG: msg is %d bytes\n", len(msg))
 
 	// Do the encryption
 	var out []byte
-	box.SealAfterPrecomputation(out, msg, &sw.nonce, sw.key)
+	out = box.SealAfterPrecomputation(out, msg, &sw.nonce, sw.key)
+	fmt.Printf("DEBUG: sending %d bytes\n", len(out))
 
 	// Save the new nonce for use in the next write
 	sw.nonce = nextNonce
